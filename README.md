@@ -9,7 +9,9 @@ DSH 局域网一体化工具，Windows批处理脚本，利用系统 `portproxy`
 - ✅自动探测本机局域网IP，单网卡环境无需手动配置IP
 - ✅一键开启/关闭局域网端口转发(portproxy)
 - ✅自动创建/清理 Windows防火墙放行规则
-- ✅DSH程序状态检测
+- ✅Node/npm环境检测，可选开启Node.js静默自动安装
+- ✅DSH全局安装检测，缺失时交互式自动执行npm全局安装dsh
+- ✅NPM镜像源切换：一键切换淘宝国内镜像 / 还原官方源，解决npm下载超时
 - ✅一键完整状态自检
 - ✅一键拉起 DSH Web服务
 - ✅退出前残留规则安全校验，防止遗忘清理持久转发
@@ -17,7 +19,8 @@ DSH 局域网一体化工具，Windows批处理脚本，利用系统 `portproxy`
 
 ## 环境要求
 - Windows10 / Windows11
-- DSH已npm全局安装，`dsh.cmd` 在 `%APPDATA%\npm\dsh.cmd`
+- Node.js LTS（自带npm）
+> 脚本支持可选开启Node自动静默安装；安装Node后**必须重启脚本**环境变量才生效。
 - 端口转发、防火墙操作**需要管理员权限**
 
 ## 使用方法
