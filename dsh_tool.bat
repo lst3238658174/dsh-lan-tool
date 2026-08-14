@@ -1,327 +1,294 @@
 @echo off
-chcp 936 >nul
+chcp 65001 >nul
 setlocal enabledelayedexpansion
 
-set FIREWALL_RULE=DSH-3080-LAN
-:: ÖÃ¿Õ×Ô¶¯Ì½²â£»¶àÍø¿¨Ê¶±ğÒì³£ÊÖ¶¯ÉèÖÃ set LOCAL_IP=192.168.1.19
-set LOCAL_IP=
-set PORT=3080
-set DSH_PATH=%APPDATA%\npm\dsh.cmd
-set TAOBAO_REGISTRY=https://registry.npmmirror.com
-set OFFICIAL_REGISTRY=https://registry.npmjs.org
+:: ======================é…ç½®åŒº======================
+set "AUTO_INSTALL_NODE=false"
+set "LOCAL_IP="
+set "PORT=3080"
+set "PDU_FW_RULE=DSH_LAN_TOOL_%PORT%"
+:: ==================================================
 
-:: ==========¡¾¿ÉÑ¡¡¿ÊÇ·ñ¿ªÆôNode×Ô¶¯¾²Ä¬°²×° true¿ªÆô false¹Ø±Õ ==========
-set AUTO_INSTALL_NODE=false
-:: ====================================================================
+cls
+echo ==============================================
+echo        DSH å±€åŸŸç½‘ä¸€ä½“åŒ–å·¥å…· v1.6.1
+echo ==============================================
+echo.
 
-:: ==========×Ô¶¯»ñÈ¡±¾»ú¾ÖÓòÍøIPv4==========
-echo [ĞÅÏ¢]ÕıÔÚ×Ô¶¯Ì½²â±¾»ú¾ÖÓòÍøIP...
-for /f "delims=[] tokens=2" %%a in ('ping -4 -n 1 %computername% ^| findstr "["') do (
-    set "LOCAL_IP=%%a"
+:: --------------------------åˆ¤æ–­ç®¡ç†å‘˜æƒé™--------------------------
+fltmc >nul 2>&1
+if !errorlevel! neq 0 (
+    echo [è­¦å‘Š] å½“å‰æœªä»¥ç®¡ç†å‘˜èº«ä»½è¿è¡Œï¼
+    echo [æç¤º] ç«¯å£è½¬å‘ã€é˜²ç«å¢™åŠŸèƒ½éœ€è¦ç®¡ç†å‘˜æƒé™ã€‚
+    echo.
+    pause
 )
+
+:: --------------------------è·å–å†…ç½‘ç§æœ‰IP è¿‡æ»¤VPN/å…¬ç½‘è™šæ‹ŸIP--------------------------
+echo [ä¿¡æ¯]æ­£åœ¨è‡ªåŠ¨æ¢æµ‹æœ¬æœºå±€åŸŸç½‘IP...
+if defined LOCAL_IP goto SKIP_AUTO_IP
+
+set "LOCAL_IP="
+for /f "delims=[] tokens=2" %%a in ('ping -4 -n 1 %computername% ^| findstr "["') do (
+    set "TEST_IP=%%a"
+    call :IS_PRIVATE_IP !TEST_IP!
+    if !IS_PRIVATE! equ 1 (
+        set "LOCAL_IP=%%a"
+    )
+)
+
 if "!LOCAL_IP!"=="" (
-    echo [´íÎó]×Ô¶¯»ñÈ¡IPÊ§°Ü£¬ÇëÊÖ¶¯ÔÚ½Å±¾ÉèÖÃ LOCAL_IP
+    echo [é”™è¯¯]è‡ªåŠ¨è·å–å†…ç½‘IPå¤±è´¥ï¼æ£€æµ‹åˆ°VPN/è™šæ‹Ÿç½‘å¡ï¼Œè¯·æ‰‹åŠ¨åœ¨è„šæœ¬é…ç½®åŒºå¡«å†™ LOCAL_IP
     pause >nul
     exit
 )
-echo [ĞÅÏ¢]Ì½²âµ½±¾»ú¾ÖÓòÍøIP: !LOCAL_IP!
+:SKIP_AUTO_IP
+echo [ä¿¡æ¯]æ¢æµ‹åˆ°æœ¬æœºå±€åŸŸç½‘IP: !LOCAL_IP!
 echo.
-:: ==========================================
 
-:: ==========ÒÀÀµ¼ì²â£ºNode/npm / DSH×Ô¶¯°²×°Âß¼­ ==========
-call :CHECK_NODE_NPM
-call :CHECK_INSTALL_DSH
-:: ========================================================
-
-fltmc >nul 2>&1
-set "ADMIN_OK=!errorlevel!"
-
-:MENU
-cls
-echo ============= DSH¾ÖÓòÍøÒ»Ìå»¯¹¤¾ß V1.6 =============
-echo µ±Ç°¾ÖÓòÍøIP£º!LOCAL_IP!  ¶Ë¿Ú£º%PORT%
-if !ADMIN_OK! NEQ 0 (
-    echo [¾¯¸æ]£º·Ç¹ÜÀíÔ±£¬1/2¹¦ÄÜĞèÒªÓÒ¼üÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ£¡
-)
-echo.
-echo [×´Ì¬×Ô¼ì]
-call :CHECK_FORWARD
-call :CHECK_DSH
-echo.
-echo 1. ¿ªÆô¾ÖÓòÍø¶Ë¿Ú×ª·¢(¹ÜÀíÔ±)
-echo 2. ¹Ø±Õ¾ÖÓòÍø¶Ë¿Ú×ª·¢ÇåÀí¹æÔò(¹ÜÀíÔ±)
-echo 3. Æô¶¯DSH Web·şÎñ
-echo 4. Ò»¼ü×Ô¼ìÈ«²¿×´Ì¬
-echo 5. ÍË³ö
-echo 6. NPM¾µÏñÔ´ÉèÖÃ
-echo =====================================================
-set /p opt=ÇëÊäÈëÑ¡Ïî[1-6]:
-
-if "%opt%"=="1" goto START_FORWARD
-if "%opt%"=="2" goto STOP_FORWARD
-if "%opt%"=="3" goto START_DSH
-if "%opt%"=="4" goto SELF_CHECK
-if "%opt%"=="5" goto EXIT_CHECK
-if "%opt%"=="6" goto MIRROR_SUBMENU
-
-echo ÊäÈëÎŞĞ§£¬»Ø³µ·µ»Ø²Ëµ¥
-pause >nul
-goto MENU
-
-:: =================NPM¾µÏñ×Ó²Ëµ¥=================
-:MIRROR_SUBMENU
-cls
-echo ========== NPM¾µÏñÔ´ÉèÖÃ×Ó²Ëµ¥ ==========
-echo 1 = ÇĞ»»ÌÔ±¦¾µÏñ(npmmirror¹úÄÚÔ´)
-echo 2 = »¹Ô­NPM¹Ù·½Ô­Ê¼¾µÏñ
-echo 3 = ²é¿´µ±Ç°Ê¹ÓÃ¾µÏñÔ´
-echo 0 = ·µ»ØÖ÷²Ëµ¥
-echo =========================================
-set /p mopt=ÇëÊäÈë²Ù×÷:
-if "%mopt%"=="1" goto SET_TAOBAO
-if "%mopt%"=="2" goto SET_OFFICIAL
-if "%mopt%"=="3" goto SHOW_CURR_MIRROR
-if "%mopt%"=="0" goto MENU
-echo ÎŞĞ§ÊäÈë£¬°´ÈÎÒâ¼ü·µ»Ø¾µÏñ×Ó²Ëµ¥
-pause >nul
-goto MIRROR_SUBMENU
-
-:SET_TAOBAO
-echo [²Ù×÷]ÕıÔÚÉèÖÃnpm registryÎªÌÔ±¦¾µÏñ !TAOBAO_REGISTRY!
-npm config set registry !TAOBAO_REGISTRY!
-if !errorlevel! equ 0 (
-    echo [OK]¾µÏñÇĞ»»³É¹¦¡£
-) else (
-    echo [´íÎó]¾µÏñÇĞ»»Ê§°Ü£¬Çë¼ì²énpm»·¾³¡£
-)
-pause >nul
-goto MIRROR_SUBMENU
-
-:SET_OFFICIAL
-echo [²Ù×÷]ÕıÔÚ»¹Ô­npm¹Ù·½Ô´ !OFFICIAL_REGISTRY!
-npm config set registry !OFFICIAL_REGISTRY!
-if !errorlevel! equ 0 (
-    echo [OK]ÒÑ»¹Ô­¹Ù·½Ô­Ê¼¾µÏñ¡£
-) else (
-    echo [´íÎó]¾µÏñ»¹Ô­Ê§°Ü£¬Çë¼ì²énpm»·¾³¡£
-)
-pause >nul
-goto MIRROR_SUBMENU
-
-:SHOW_CURR_MIRROR
-echo [ĞÅÏ¢]¶ÁÈ¡µ±Ç°npm registryÅäÖÃ£º
-npm config get registry
-pause >nul
-goto MIRROR_SUBMENU
-:: ================================================
-
-:: ¼ì²ânodeºÍnpmÊÇ·ñ¿ÉÓÃ
+:: --------------------------æ ¡éªŒNode/NPMç¯å¢ƒï¼ˆä¿®å¤å»¶è¿Ÿæ‰©å±•å¡æ­»bugï¼‰--------------------------
 :CHECK_NODE_NPM
-echo [ĞÅÏ¢]Ğ£Ñé Node.js / NPM »·¾³...
+echo [ä¿¡æ¯]æ ¡éªŒ Node.js / NPM ç¯å¢ƒ...
+setlocal disabledelayedexpansion
 npm -v >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [¾¯¸æ]±¾»úÎ´¼ì²âµ½ NPM / Node.js£¡
+set NPM_EXIT=!errorlevel!
+endlocal & set "NPM_EXIT=%NPM_EXIT%"
+
+if %NPM_EXIT% neq 0 (
+    echo [è­¦å‘Š]æœ¬æœºæœªæ£€æµ‹åˆ° NPM / Node.jsï¼
     if "!AUTO_INSTALL_NODE!"=="true" (
-        echo [ĞÅÏ¢]¿ªÆôNode×Ô¶¯¾²Ä¬°²×°£¬ĞèÒª¹ÜÀíÔ±È¨ÏŞÓëÍøÂç¡£
+        echo [ä¿¡æ¯]å°†æ‰§è¡ŒNode.js LTSé™é»˜å®‰è£…ï¼Œéœ€è¦ç½‘ç»œä¸ç®¡ç†å‘˜æƒé™
         call :AUTO_DOWNLOAD_NODE
     ) else (
         echo.
-        echo ÌáÊ¾£º½Å±¾ÄÚĞŞ¸Ä AUTO_INSTALL_NODE=true ¿ÉÒÔ¿ªÆô×Ô¶¯ÏÂÔØ°²×°Node
-        echo ÇëÊÖ¶¯ÏÂÔØ°²×° Node.js(LTS°æ±¾)£ºhttps://nodejs.org/
-        echo ??°²×°Íê³Éºó±ØĞëÍêÈ«¹Ø±Õ½Å±¾£¬ÖØĞÂÔËĞĞ±¾bat£¡
+        echo æç¤ºï¼šä¿®æ”¹è„šæœ¬é¡¶éƒ¨ AUTO_INSTALL_NODE=true å¼€å¯è‡ªåŠ¨å®‰è£…Node
+        echo è¯·æ‰‹åŠ¨ä¸‹è½½å®‰è£… Node.js LTSï¼šhttps://nodejs.org/
+        echo âš ï¸å®‰è£…å®Œæˆå¿…é¡»å®Œå…¨å…³é—­è„šæœ¬çª—å£ï¼Œé‡æ–°è¿è¡Œï¼
         pause >nul
         exit
     )
 )
-for /f "delims=" %%i in ('npm -v 2^>nul') do set NPM_VER=%%i
-if defined NPM_VER echo [OK]¼ì²âNPM°æ±¾: !NPM_VER!
-echo.
-goto :eof
 
-:: Node.js×Ô¶¯ÏÂÔØ¾²Ä¬°²×°×Ó¹ı³Ì
-:AUTO_DOWNLOAD_NODE
-fltmc >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [´íÎó]×Ô¶¯°²×°NodeĞèÒª¹ÜÀíÔ±È¨ÏŞ£¬ÇëÓÒ¼ü¹ÜÀíÔ±ÔËĞĞ½Å±¾£¡
-    pause >nul
-    exit
-)
-echo [ĞÅÏ¢]ÕıÔÚÏÂÔØNode.js LTS°²×°°ü...
-set "NODE_INSTALLER=%temp%\nodejs_lts.msi"
-:: ¹úÄÚ¾µÏñÏÂÔØLTS msi
-powershell -Command "$wc = New-Object System.Net.WebClient; $wc.DownloadFile('https://npmmirror.com/mirrors/node/v22.14.0/node-v22.14.0-x64.msi','!NODE_INSTALLER!')"
-if not exist "!NODE_INSTALLER!" (
-    echo [´íÎó]Node°²×°°üÏÂÔØÊ§°Ü£¬Çë¼ì²éÍøÂç£¡
-    pause >nul
-    exit
-)
-echo [ĞÅÏ¢]Ö´ĞĞ¾²Ä¬°²×°Node.js£¬µÈ´ıÍê³É...
-msiexec /i "!NODE_INSTALLER!" /qn /norestart
-echo [ĞÅÏ¢]Node°²×°³ÌĞòÖ´ĞĞÍê±Ï£¡
-echo.
-echo ??¡¾ÖØÒª¡¿Windows½ø³ÌÏŞÖÆ£¡»·¾³±äÁ¿PATH²»»áÔÚµ±Ç°½Å±¾ÉúĞ§£¡
-echo Çë¹Ø±Õ±¾½Å±¾´°¿Ú£¬ÖØĞÂÓÒ¼ü¹ÜÀíÔ±ÔËĞĞdsh_tool.bat£¡
-echo.
-pause >nul
-exit
-goto :eof
+set "NPM_VER="
+setlocal disabledelayedexpansion
+for /f "delims=" %%i in ('npm -v 2^>nul') do set "TMP_VER=%%i"
+endlocal & set "NPM_VER=%TMP_VER%"
 
-:: ¼ì²âDSH£¬²»´æÔÚÔò½»»¥Ê½×Ô¶¯°²×°
-:CHECK_INSTALL_DSH
-echo [ĞÅÏ¢]Ğ£ÑéDSHÈ«¾Ö°²×°×´Ì¬...
-if exist "%DSH_PATH%" (
-    echo [OK]DSHÒÑÈ«¾Ö°²×°¡£
+if defined NPM_VER echo [OK]æ£€æµ‹NPMç‰ˆæœ¬: !NPM_VER!
+echo.
+
+:: --------------------------æ£€æŸ¥DSHæ˜¯å¦å·²ç»å…¨å±€å®‰è£…--------------------------
+set "DSH_PATH=%APPDATA%\npm\dsh.cmd"
+if exist "!DSH_PATH!" (
+    echo [OK]å·²æ£€æµ‹å…¨å±€DSHï¼Œè¿›å…¥ä¸»èœå•
     echo.
-    goto :eof
+    goto MAIN_MENU
 )
-echo [NO]Î´ÕÒµ½ dsh.cmd£¬DSHÎ´È«¾Ö°²×°£¡
-echo ÌáÊ¾£ºÏÂÔØÂı¿ÉÒÔÏÈµ½¡¾6 NPM¾µÏñÔ´ÉèÖÃ¡¿ÇĞ»»¹úÄÚÌÔ±¦¾µÏñ
-set /p do_install=ÊÇ·ñÖ´ĞĞ npm install -g dsh ×Ô¶¯°²×°£¿(Y/N):
-if /i "!do_install!"=="Y" (
-    echo [ĞÅÏ¢]¿ªÊ¼È«¾Ö°²×°DSH£¬ÇëµÈ´ıÍøÂçÏÂÔØÍê³É...
+
+echo [æç¤º]æœªæ£€æµ‹åˆ°å…¨å±€DSHï¼Œæ˜¯å¦æ‰§è¡Œ npm install -g dsh
+set /p INSTALL_DSH="è¾“å…¥Yç¡®è®¤å®‰è£… / Né€€å‡º(Y/N): "
+if /i "!INSTALL_DSH!"=="Y" (
+    echo [ä¿¡æ¯]æ­£åœ¨æ‰§è¡Œ npm install -g dsh ...
+    setlocal disabledelayedexpansion
     npm install -g dsh
-    :: Ë¢ĞÂ»·¾³±äÁ¿£¬ÖØĞÂ¶ÁÈ¡npmÂ·¾¶
-    set "DSH_PATH=%APPDATA%\npm\dsh.cmd"
-    if exist "!DSH_PATH!" (
-        echo.
-        echo [OK]DSH°²×°³É¹¦£¡
-    ) else (
-        echo.
-        echo [´íÎó]npmÖ´ĞĞÍê±Ï£¬µ«ÈÔÈ»ÕÒ²»µ½dsh.cmd£¬°²×°Ê§°Ü£¡
-        echo ½¨ÒéÇĞ»»¹úÄÚ¾µÏñÔ´ºóÖØÊÔ£¬¼ì²éÍøÂç¡¢npmÈ«¾ÖÈ¨ÏŞ¡£
-        pause >nul
-        exit
-    )
+    endlocal
 ) else (
-    echo [ÌáÊ¾]ÓÃ»§Ñ¡Ôñ²»°²×°DSH£¬½Å±¾ÍË³ö¡£
+    echo [é€€å‡º]ç”¨æˆ·å–æ¶ˆå®‰è£…DSH
     pause >nul
     exit
 )
+
+if not exist "!DSH_PATH!" (
+    echo [é”™è¯¯]DSHå®‰è£…å¤±è´¥ï¼æ£€æŸ¥ç½‘ç»œã€npmå…¨å±€æƒé™ã€é•œåƒæº
+    pause >nul
+    exit
+)
+echo [OK]DSHå…¨å±€å®‰è£…å®Œæˆ
 echo.
-goto :eof
 
-:: ¼ì²â¶Ë¿Ú×ª·¢ÊÇ·ñ´æÔÚ£¬¼ìË÷listenport
-:CHECK_FORWARD
-netsh interface portproxy show all | findstr /c:"listenport=%PORT%" >nul 2>&1
-if !errorlevel! equ 0 (
-    echo [OK]¶Ë¿Ú×ª·¢£ºÒÑ¿ªÆô
-) else (
-    echo [NO]¶Ë¿Ú×ª·¢£ºÎ´¿ªÆô
-)
-goto :eof
+goto MAIN_MENU
 
-:: ¼ì²âdsh.cmdÊÇ·ñ´æÔÚ
-:CHECK_DSH
-if exist "%DSH_PATH%" (
-    echo [OK]DSH³ÌĞò£º¼ì²âÕı³£
-) else (
-    echo [NO]DSH³ÌĞò£ºÎ´ÕÒµ½ dsh.cmd
-)
-goto :eof
-
-:SELF_CHECK
+:: =====================ä¸»èœå•=====================
+:MAIN_MENU
 cls
-echo ==================== ÍêÕû×Ô¼ì±¨¸æ ====================
-echo ±¾»ú¾ÖÓòÍøIP      : !LOCAL_IP!:%PORT%
-echo ±¾»ú·ÃÎÊµØÖ·      : http://127.0.0.1:%PORT%
-echo ¾ÖÓòÍø·ÃÎÊµØÖ·    : http://!LOCAL_IP!:%PORT%
+echo ==============================================
+echo          DSHâ€‘LANâ€‘TOOL v1.6.1 ä¸»èœå•
+echo    æœ¬æœºå†…ç½‘IP:!LOCAL_IP! ç«¯å£:!PORT!
+echo ==============================================
+echo 1.å¼€å¯ç«¯å£è½¬å‘+é˜²ç«å¢™æ”¾è¡Œ
+echo 2.å…³é—­ç«¯å£è½¬å‘+åˆ é™¤é˜²ç«å¢™è§„åˆ™
+echo 3.å¯åŠ¨DSHâ€‘WebæœåŠ¡ï¼Œè‡ªåŠ¨æ‰“å¼€æµè§ˆå™¨
+echo 4.ä¸€é”®çŠ¶æ€è‡ªæ£€
+echo 6.NPMé•œåƒæºè®¾ç½®å­èœå•
+echo 5.é€€å‡ºç¨‹åº
+echo ==============================================
+set /p SEL="è¯·è¾“å…¥åŠŸèƒ½æ•°å­—:"
+
+if "!SEL!"=="1" goto SETUP_FORWARD
+if "!SEL!"=="2" goto CLEAR_FORWARD
+if "!SEL!"=="3" goto START_DSH_WEB
+if "!SEL!"=="4" goto CHECK_ALL_STATUS
+if "!SEL!"=="6" goto NPM_MIRROR_SUBMENU
+if "!SEL!"=="5" goto SAFE_EXIT
+echo [é”™è¯¯]æ— æ•ˆè¾“å…¥ï¼Œè¯·é‡æ–°é€‰æ‹©
+timeout /t 1 /nobreak >nul
+goto MAIN_MENU
+
+:: =====================ç«¯å£è½¬å‘å¼€å¯=====================
+:SETUP_FORWARD
 echo.
-call :CHECK_FORWARD
-call :CHECK_DSH
-netsh advfirewall firewall show rule name="%FIREWALL_RULE%" >nul 2>&1
+netsh interface portproxy show all | findstr ":!PORT!" >nul
 if !errorlevel! equ 0 (
-    echo [OK]·À»ğÇ½¹æÔò£ºÒÑ´æÔÚ
+    echo [æç¤º]ç«¯å£ !PORT!è½¬å‘è§„åˆ™å·²å­˜åœ¨ï¼Œè·³è¿‡é‡å¤åˆ›å»º
 ) else (
-    echo [NO]·À»ğÇ½¹æÔò£º²»´æÔÚ
+    echo [ä¿¡æ¯]æ–°å¢portproxyç«¯å£è½¬å‘ !PORT!^->!LOCAL_IP!:!PORT!
+    netsh interface portproxy add v4tov4 listenport=!PORT! listenaddress=0.0.0.0 connectport=!PORT! connectaddress=!LOCAL_IP!
 )
-echo.
-echo [°²È«ÌáĞÑ]portproxyÎªÏµÍ³³Ö¾Ã¹æÔò£¬ÖØÆôµçÄÔ²»»á×Ô¶¯Çå³ı£¬ÓÃÍêÎñ±ØÖ´ĞĞ¹Ø±Õ£¡
-pause >nul
-goto MENU
 
-:START_FORWARD
-if !ADMIN_OK! NEQ 0 (
-    echo [´íÎó]£º±ØĞëÓÒ¼ü¡¾ÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ¡¿½Å±¾£¡
-    pause >nul
-    goto MENU
-)
-netsh interface portproxy show all | findstr /c:"listenport=%PORT%" >nul 2>&1
+netsh advfirewall firewall show rule name="!PDU_FW_RULE!" >nul
 if !errorlevel! equ 0 (
-    echo [ÌáÊ¾]¶Ë¿Ú×ª·¢ÒÑ¾­´æÔÚ£¬ÎŞĞèÖØ¸´Ìí¼Ó
-    pause >nul
-    goto MENU
-)
-
-netsh interface portproxy add v4tov4 listenport=%PORT% listenaddress=!LOCAL_IP! connectport=%PORT% connectaddress=127.0.0.1
-netsh advfirewall firewall add rule name="%FIREWALL_RULE%" dir=in action=allow protocol=TCP localport=%PORT% enable=yes
-
-echo.
-echo --------µ±Ç°×ª·¢¹æÔò--------
-netsh interface portproxy show all
-echo.
-echo [OK]¶Ë¿Ú×ª·¢ÒÑÆôÓÃ£¡
-echo ±¾»ú·ÃÎÊ£ºhttp://127.0.0.1:%PORT%
-echo ¾ÖÓòÍø·ÃÎÊ£ºhttp://!LOCAL_IP!:%PORT%
-echo [°²È«¾¯¸æ]½öÏŞ¼ÒÍ¥ÄÚÍø£¬DSH´æÔÚÔ¶³Ì´úÂëÖ´ĞĞ·çÏÕ£¬½ûÖ¹±©Â¶¹«Íø£¡
-echo.
-pause >nul
-goto MENU
-
-:STOP_FORWARD
-if !ADMIN_OK! NEQ 0 (
-    echo [´íÎó]£º±ØĞëÓÒ¼ü¡¾ÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ¡¿½Å±¾£¡
-    pause >nul
-    goto MENU
-)
-netsh interface portproxy show all | findstr /c:"listenport=%PORT%" >nul 2>&1
-if !errorlevel! neq 0 (
-    echo [ÌáÊ¾]¶Ë¿Ú×ª·¢²»´æÔÚ£¬ÎŞĞèÉ¾³ı
+    echo [æç¤º]é˜²ç«å¢™è§„åˆ™å·²å­˜åœ¨
 ) else (
-    netsh interface portproxy delete v4tov4 listenport=%PORT% listenaddress=!LOCAL_IP!
+    echo [ä¿¡æ¯]åˆ›å»ºé˜²ç«å¢™å…¥ç«™æ”¾è¡Œè§„åˆ™ !PDU_FW_RULE!
+    netsh advfirewall firewall add rule name="!PDU_FW_RULE!" dir=in action=allow protocol=TCP localport=!PORT! profile=any enable=yes >nul
 )
-netsh advfirewall firewall delete rule name="%FIREWALL_RULE%" >nul 2>&1
-
+echo [å®Œæˆ]ç«¯å£è½¬å‘é…ç½®å®Œæˆ
 echo.
-echo --------ÇåÀíºó×ª·¢ÁĞ±í--------
-netsh interface portproxy show all
-echo [OK]¶Ë¿Ú×ª·¢¡¢·À»ğÇ½¹æÔòÒÑÈ«²¿Çå³ı
-echo.
-pause >nul
-goto MENU
+pause
+goto MAIN_MENU
 
-:START_DSH
-if not exist "%DSH_PATH%" (
-    echo [´íÎó]Î´ÕÒµ½ dsh.cmd£¬ÇëÈ·ÈÏdshÒÑ¾­ÕıÈ·°²×°£¡
-    pause >nul
-    goto MENU
+:: =====================æ¸…ç†ç«¯å£è½¬å‘=====================
+:CLEAR_FORWARD
+echo.
+netsh interface portproxy show all | findstr ":!PORT!" >nul
+if !errorlevel! equ 0 (
+    echo [ä¿¡æ¯]åˆ é™¤portproxy !PORT!è½¬å‘
+    netsh interface portproxy delete v4tov4 listenport=!PORT! listenaddress=0.0.0.0
+) else (
+    echo [æç¤º]æœªæ‰¾åˆ°portproxyè½¬å‘è§„åˆ™
 )
-echo ÕıÔÚÆô¶¯DSH Web£¬½ö¼àÌı±¾»ú127.0.0.1:%PORT%
-echo ĞèÒª¾ÖÓòÍø·ÃÎÊÇëÏÈÑ¡1¿ªÆô×ª·¢
-echo.
-start "" "%DSH_PATH%" web
-echo [µÈ´ı]DSH·şÎñÕıÔÚ³õÊ¼»¯£¬ÇëÉÔºò...
-timeout /t 8 /nobreak >nul
-echo ³¢ÊÔ´ò¿ªä¯ÀÀÆ÷ http://127.0.0.1:%PORT%
-start http://127.0.0.1:%PORT%
-echo.
-echo [ÌáÊ¾]²»Òª¹Ø±Õµ¯³öµÄdshºÚÉ«·şÎñ´°¿Ú£¡
-echo ¾ÖÓòÍø·ÃÎÊµØÖ·£ºhttp://!LOCAL_IP!:%PORT%
-echo Èç¹û¾Ü¾øÁ¬½Ó£¬ÇëµÈ´ıÊıÃëºóÊÖ¶¯Ë¢ĞÂä¯ÀÀÆ÷
-echo.
-pause >nul
-goto MENU
 
-:: ÍË³öÇ°°²È«Ğ£Ñé
-:EXIT_CHECK
+netsh advfirewall firewall show rule name="!PDU_FW_RULE!" >nul
+if !errorlevel! equ 0 (
+    echo [ä¿¡æ¯]åˆ é™¤é˜²ç«å¢™è§„åˆ™ !PDU_FW_RULE!
+    netsh advfirewall firewall delete rule name="!PDU_FW_RULE!" >nul
+) else (
+    echo [æç¤º]æœªæ‰¾åˆ°é˜²ç«å¢™è§„åˆ™
+)
+echo [å®Œæˆ]è½¬å‘ä¸é˜²ç«å¢™è§„åˆ™æ¸…ç†å®Œæ¯•
+echo.
+pause
+goto MAIN_MENU
+
+:: =====================å¯åŠ¨DSH Web=====================
+:START_DSH_WEB
+echo.
+if not exist "!DSH_PATH!" (
+    echo [é”™è¯¯]dsh.cmdä¸å­˜åœ¨ï¼Œæ— æ³•å¯åŠ¨ï¼
+    pause
+    goto MAIN_MENU
+)
+echo [ä¿¡æ¯]å¯åŠ¨DSHâ€‘Webï¼Œç­‰å¾…3ç§’åè‡ªåŠ¨æ‰“å¼€æµè§ˆå™¨
+start "" cmd /k dsh web
+timeout /t 3 /nobreak >nul
+start http://127.0.0.1:!PORT!
+echo.
+pause
+goto MAIN_MENU
+
+:: =====================å…¨éƒ¨çŠ¶æ€è‡ªæ£€=====================
+:CHECK_ALL_STATUS
 cls
-echo [ÍË³ö°²È«Ğ£Ñé]
-call :CHECK_FORWARD
-netsh advfirewall firewall show rule name="%FIREWALL_RULE%" >nul 2>&1
-if !errorlevel! equ 0 (
-    echo [¾¯¸æ]·À»ğÇ½¹æÔòÈÔÈ»´æÔÚ£¡½¨ÒéÖ´ĞĞÑ¡Ïî2ÇåÀíºóÔÙÍË³ö
-)
+echo ========== çŠ¶æ€è‡ªæ£€æŠ¥å‘Š ==========
+echo æœ¬æœºå†…ç½‘IP: !LOCAL_IP!
 echo.
-echo È·ÈÏÍË³ö½Å±¾£¿ÈÎÒâ¼ü¼ÌĞø
+echo 1.portproxyç«¯å£è½¬å‘(!PORT!):
+netsh interface portproxy show all | findstr ":!PORT!"
+if !errorlevel! neq 0 echo     â†’ æ— è½¬å‘è§„åˆ™
+echo.
+echo 2.é˜²ç«å¢™è§„åˆ™(!PDU_FW_RULE!):
+netsh advfirewall firewall show rule name="!PDU_FW_RULE!" >nul
+if !errorlevel! equ 0 (echo     â†’ è§„åˆ™å­˜åœ¨) else (echo     â†’ ä¸å­˜åœ¨)
+echo.
+echo 3.DSHå…¨å±€æ–‡ä»¶(!DSH_PATH!):
+if exist "!DSH_PATH!" (echo     â†’ æ–‡ä»¶å­˜åœ¨) else (echo     â†’ æ–‡ä»¶ç¼ºå¤±)
+echo.
+echo ==================================
+pause
+goto MAIN_MENU
+
+:: =====================NPMé•œåƒå­èœå•=====================
+:NPM_MIRROR_SUBMENU
+cls
+echo ========== NPMé•œåƒæºè®¾ç½® ==========
+echo 1.åˆ‡æ¢æ·˜å®npmmirrorå›½å†…é•œåƒ
+echo 2.è¿˜åŸå®˜æ–¹npmåŸå§‹æº
+echo 3.æŸ¥çœ‹å½“å‰ç”Ÿæ•ˆé•œåƒåœ°å€
+echo 0.è¿”å›ä¸»èœå•
+echo ==================================
+set /p MIR_SEL="è¯·è¾“å…¥é€‰æ‹©:"
+if "!MIR_SEL!"=="1" (
+    echo [ä¿¡æ¯]è®¾ç½®npm registryä¸ºæ·˜å®é•œåƒ
+    setlocal disabledelayedexpansion
+    npm config set registry https://registry.npmmirror.com
+    endlocal
+)
+if "!MIR_SEL!"=="2" (
+    echo [ä¿¡æ¯]æ¢å¤npmå®˜æ–¹æº
+    setlocal disabledelayedexpansion
+    npm config set registry https://registry.npmjs.org
+    endlocal
+)
+if "!MIR_SEL!"=="3" (
+    echo [ä¿¡æ¯]å½“å‰registry:
+    setlocal disabledelayedexpansion
+    npm config get registry
+    endlocal
+)
+if "!MIR_SEL!"=="0" goto MAIN_MENU
+echo.
+pause
+goto NPM_MIRROR_SUBMENU
+
+:: =====================å®‰å…¨é€€å‡ºï¼Œæ£€æµ‹æ®‹ç•™è§„åˆ™=====================
+:SAFE_EXIT
+echo.
+netsh interface portproxy show all | findstr ":!PORT!" >nul
+if !errorlevel! equ 0 (
+    echo âš ï¸è­¦å‘Šï¼šæ£€æµ‹åˆ°æœ¬è„šæœ¬åˆ›å»ºçš„ !PORT!ç«¯å£è½¬å‘è§„åˆ™å°šæœªæ¸…ç†ï¼
+    echo portproxyå±äºç³»ç»ŸæŒä¹…è§„åˆ™ï¼Œé‡å¯ç”µè„‘ä¸ä¼šè‡ªåŠ¨æ¸…é™¤ï¼Œè¯·å›åˆ°èœå•æ‰§è¡Œé€‰é¡¹2æ¸…ç†ï¼
+)
+echo å³å°†é€€å‡ºè„šæœ¬
+timeout /t 2
+exit
+
+:: =====================ç§æœ‰IPåˆ¤æ–­å‡½æ•°ï¼Œè¿‡æ»¤å…¬ç½‘/VPNIP=====================
+:IS_PRIVATE_IP
+set "IS_PRIVATE=0"
+echo %~1 | findstr /r "^192\.168\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^10\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.16\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.17\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.18\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.19\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.20\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.21\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.22\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.23\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.24\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.25\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.26\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.27\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.28\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.29\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.30\." >nul && set IS_PRIVATE=1
+echo %~1 | findstr /r "^172\.31\." >nul && set IS_PRIVATE=1
+goto :eof
+
+:: =====================Nodeè‡ªåŠ¨å®‰è£…ï¼ˆç®€æ˜“é™é»˜å®‰è£…ï¼Œå¯æŒ‰éœ€å¼€å¯AUTO_INSTALL_NODE=trueï¼‰=====================
+:AUTO_DOWNLOAD_NODE
+echo [æç¤º]Nodeè‡ªåŠ¨å®‰è£…é€»è¾‘ï¼Œä½ å¯ä»¥æ ¹æ®éœ€è¦å®Œå–„ï¼Œå½“å‰ç‰ˆæœ¬æç¤ºæ‰‹åŠ¨å®‰è£…
+echo âš ï¸é™é»˜MSIå®‰è£…ä¼šè¢«Windows Defenderæ‹¦æˆª
+echo è¯·æ‰‹åŠ¨å®‰è£…Node.js LTSï¼Œå®‰è£…å®Œæˆå…³é—­è„šæœ¬çª—å£é‡æ–°è¿è¡Œ
 pause >nul
-echo ½Å±¾ÍË³ö
 exit
