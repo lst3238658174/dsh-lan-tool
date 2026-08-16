@@ -1,35 +1,40 @@
 @echo off
 setlocal enabledelayedexpansion
-pushd "%~dp0"
-::======================== 脚本配置区 ========================
+::======================== 全局配置区（统一修改一处全局生效） ========================
 set "LOCAL_IP="
 set "LOCAL_PORT=8080"
 set "SHADOW_DSH_PORT=22222"
 set "AUTO_CLEAN_RULE=1"
-::npx内置镜像，不修改系统全局npm配置
 set "NPM_REGISTRY=https://registry.npmmirror.com"
-set "NPX_CMD=--registry=%NPM_REGISTRY% @deepseek-ai/dsh web --port %SHADOW_DSH_PORT%"
+set "DSH_PKG=@deepseek-ai/dsh"
+:: 统一封装npx基础参数，所有调用复用
+set "NPX_BASE=npx --yes --registry=%NPM_REGISTRY% %DSH_PKG%"
+set "NPX_RUN=%NPX_BASE% web --port %SHADOW_DSH_PORT%"
+set "LOCAL_LOOP=127.0.0.1"
 ::===========================================================
 cls
 echo ======================================================
-echo        DSH 局域网一体化工具 v1.7 分层菜单优化版
-echo  ?前置条件：手动安装 Node.js LTS，脚本无法自动安装Node
+echo        DSH 局域网一体化工具 v1.7 优化增强版
+echo  前置条件：手动安装 Node.js LTS，脚本无法自动安装Node
 echo ======================================================
-echo [环境检测]脚本工作目录: %cd%
+echo [环境检测]脚本工作目录: "%cd%"
 echo.
 goto env_check
+
 :recheck_env
 cls
 :env_check
 echo -------- 前置环境检测 --------
 set "NODE_OK=0"
 set "NPX_OK=0"
+:: 管理员校验
 fltmc >nul 2>&1
 if errorlevel 1 (
     echo [错误]当前不是管理员权限！端口转发netsh必须管理员，请右键脚本[以管理员身份运行]
 ) else (
     echo [OK]管理员权限校验通过
 )
+:: Node检测
 where node >nul 2>&1
 if errorlevel 1 (
     echo [警告]未检测到node.js
@@ -39,6 +44,7 @@ if errorlevel 1 (
     set "NODE_OK=1"
     for /f "delims=" %%v in ('node -v 2^>nul') do echo [OK]node版本: %%v
 )
+:: Npx检测
 where npx >nul 2>&1
 if errorlevel 1 (
     echo [警告]未检测到npx Node安装异常
@@ -46,6 +52,7 @@ if errorlevel 1 (
     set "NPX_OK=1"
     for /f "delims=" %%v in ('npx -v 2^>nul') do echo [OK]npx版本: %%v
 )
+:: DSH端口占用检测
 netstat -ano | findstr ":%SHADOW_DSH_PORT%" >nul
 if not errorlevel 1 (
     echo [警告]端口%SHADOW_DSH_PORT%已经被占用！DSH服务端口冲突
@@ -54,7 +61,8 @@ if not errorlevel 1 (
 )
 echo ------------------------------
 echo.
-::IP自动探测
+
+::======================== 内网IP自动探测函数 ========================
 if defined LOCAL_IP (
     echo [信息]已使用手动配置IP: !LOCAL_IP!
     goto ip_probe_done
@@ -98,11 +106,11 @@ set "LOCAL_IP=!ip_list[!choose!]!"
 echo [信息]已选择IP: !LOCAL_IP!
 :ip_probe_done
 goto ip_probe_end
+
 :filter_ip
 set "curr_ip=%~1"
 if not defined curr_ip goto :eof
-echo !curr_ip! | findstr "^127\." >nul
-if not errorlevel 1 goto :eof
+echo !curr_ip! | findstr "^127\." >nul && goto :eof
 echo !curr_ip! | findstr "^192\.168\." >nul && goto add_ip
 echo !curr_ip! | findstr "^10\." >nul && goto add_ip
 echo !curr_ip! | findstr "^172\." >nul
@@ -117,12 +125,14 @@ set /a ip_count+=1
 set "ip_list[!ip_count!]=!curr_ip!"
 goto :eof
 :ip_probe_end
+
 echo.
 echo [本机信息] 局域网IP: !LOCAL_IP!
 echo [本机信息] 外部访问端口: !LOCAL_PORT!
 echo [本机信息] DSH本地端口: !SHADOW_DSH_PORT!
-echo [npx启动命令] npx !NPX_CMD!
+echo [npx启动命令] npx !NPX_RUN!
 echo.
+
 ::===================== 一级主菜单 =====================
 :main_menu
 echo ====================== 主功能菜单 ======================
@@ -130,10 +140,10 @@ echo 1. 创建端口转发规则
 echo 2. 查看本机现有端口转发
 echo 3. 删除全部端口转发规则
 echo 4. 一键配置DSH局域网隧道
-echo 5. 启动 DSH(npx)服务[新开独立窗口]
-echo 6. 终止全部 Node / DSH 进程
+echo 5. 启动DSH(npx)独立窗口
+echo 6. 终止全部Node/DSH进程
 echo 7. 重新执行环境自检
-echo 8. 进入进阶设置子菜单(版本/镜像管理)
+echo 8. 进入进阶设置(版本/镜像管理)
 echo 9. 退出脚本
 echo =====================================================
 set "sel="
@@ -151,12 +161,13 @@ if "!sel!"=="9" goto exit_script
 echo [错误]无效输入，请重新选择
 echo.
 goto main_menu
+
 ::===================== 二级进阶设置子菜单 =====================
 :sub_adv_setting
 cls
 echo ================== 进阶设置子菜单 ==================
-echo 1. 检测 DSH 版本信息
-echo 2. 更新 DSH 到最新版本
+echo 1. 检测DSH版本信息
+echo 2. 更新DSH至最新版本
 echo 3. NPM镜像源管理
 echo 0. 返回主菜单
 echo =====================================================
@@ -171,6 +182,8 @@ echo [错误]无效子菜单序号，请重新选择
 echo.
 pause
 goto sub_adv_setting
+
+::======================== DSH版本检测（统一缓存版本变量，仅一次网络请求） ========================
 :check_dsh_ver
 echo ----- DSH 版本检测 -----
 if !NODE_OK! EQU 0 (
@@ -183,34 +196,38 @@ if !NPX_OK! EQU 0 (
     pause
     goto sub_adv_setting
 )
-echo [信息]正在获取本地DSH运行版本...
+:: 一次性拉取版本，不重复请求
 set "LOCAL_DSH_VER=未知"
-for /f "delims=" %%v in ('npx --registry=%NPM_REGISTRY% @deepseek-ai/dsh --version 2^>nul') do set "LOCAL_DSH_VER=%%v"
+set "LATEST_DSH_VER=未知"
+echo [信息]正在拉取本地与线上版本信息，请稍候...
+for /f "delims=" %%v in ('!NPX_BASE! --version 2^>nul') do set "LOCAL_DSH_VER=%%v"
+for /f "delims=" %%v in ('npm view %DSH_PKG% version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_DSH_VER=%%v"
+
+echo.
 if "!LOCAL_DSH_VER!"=="未知" (
-    echo [警告]未获取到本地版本，可能尚未下载过DSH包
+    echo [警告]本地无DSH缓存包，需先执行启动或更新下载
 ) else (
     echo [OK]本地DSH版本: !LOCAL_DSH_VER!
 )
-echo.
-echo [信息]正在获取npm源最新版本...
-set "LATEST_DSH_VER=未知"
-for /f "delims=" %%v in ('npm view @deepseek-ai/dsh version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_DSH_VER=%%v"
 if "!LATEST_DSH_VER!"=="未知" (
-    echo [警告]获取最新版本失败，请检查网络连接或镜像源
+    echo [警告]线上版本拉取失败，网络/镜像异常，请切换镜像重试
 ) else (
-    echo [OK]npm最新版本: !LATEST_DSH_VER!
+    echo [OK]NPM线上最新版本: !LATEST_DSH_VER!
 )
+
 echo.
 if not "!LOCAL_DSH_VER!"=="未知" if not "!LATEST_DSH_VER!"=="未知" (
     if "!LOCAL_DSH_VER!"=="!LATEST_DSH_VER!" (
-        echo [信息]当前DSH已是最新版本
+        echo [信息]当前DSH已是最新版本，无需更新
     ) else (
-        echo [提示]存在可用更新，可选择子菜单[2]更新到最新版
+        echo [提示]存在新版本，可选择子菜单2一键更新
     )
 )
 echo.
 pause
 goto sub_adv_setting
+
+::======================== DSH一键更新（复用预查询版本，无重复请求） ========================
 :update_dsh
 echo ----- 更新 DSH 到最新版 -----
 if !NODE_OK! EQU 0 (
@@ -223,161 +240,207 @@ if !NPX_OK! EQU 0 (
     pause
     goto sub_adv_setting
 )
-echo [信息]正在查询最新版本号...
+:: 复用版本查询逻辑，不重复请求
 set "LATEST_VER=未知"
 set "LOCAL_VER=未知"
-for /f "delims=" %%v in ('npm view @deepseek-ai/dsh version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_VER=%%v"
-for /f "delims=" %%v in ('npx --yes --registry=%NPM_REGISTRY% @deepseek-ai/dsh --version 2^>nul') do set "LOCAL_VER=%%v"
+echo [信息]查询线上最新版本...
+for /f "delims=" %%v in ('npm view %DSH_PKG% version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_VER=%%v"
+for /f "delims=" %%v in ('!NPX_BASE! --version 2^>nul') do set "LOCAL_VER=%%v"
+
 if "!LATEST_VER!"=="未知" (
-    echo [警告]获取最新版本失败，尝试直接拉取...
+    echo [警告]线上版本获取失败，尝试强制拉取安装包...
     goto do_update
 )
 if "!LOCAL_VER!"=="未知" (
-    echo [信息]本地未检测到DSH缓存，执行首次安装...
+    echo [信息]本地无缓存，执行首次安装
     goto do_update
 )
-:: 版本一致自动跳过更新
+:: 版本相同直接跳过
 if "!LOCAL_VER!"=="!LATEST_VER!" (
-    echo [信息]当前已是最新版本 [!LOCAL_VER!]，无需更新
+    echo [信息]当前已是最新版本 [!LOCAL_VER!]，无需执行更新
     echo.
     pause
     goto sub_adv_setting
 )
-echo [信息]发现新版本：!LOCAL_VER! --> !LATEST_VER!
+echo [信息]发现新版本: !LOCAL_VER! --> !LATEST_VER!
+
 :do_update
-echo [信息]正在拉取安装包（无进度条，请耐心等待1-3分钟）...
-echo [说明]全程使用npmmirror国内镜像加速，首次更新耗时较长
+echo [信息]开始拉取安装包，无进度条，请等待1~3分钟
+echo [说明]使用npmmirror国内镜像加速，首次下载耗时较长
 echo.
-npx --yes --registry=%NPM_REGISTRY% @deepseek-ai/dsh@latest --version >nul 2>&1
+!NPX_BASE!@latest --version >nul 2>&1
 if !errorlevel! equ 0 (
     echo.
-    echo [成功]DSH已更新完成
-    for /f "delims=" %%v in ('npx --yes --registry=%NPM_REGISTRY% @deepseek-ai/dsh --version 2^>nul') do echo 当前生效版本: %%v
+    echo [成功]DSH更新完成，当前版本:
+    !NPX_BASE! --version
 ) else (
-    echo [失败]更新执行失败
-    echo 建议: 1. 检查网络  2. 进入镜像管理清理缓存后重试
+    echo [失败]更新拉取失败
+    echo 排错建议: 1.切换镜像源 2.清理npm缓存 3.检查网络
 )
 echo.
 pause
 goto sub_adv_setting
+
+::======================== NPM镜像管理 ========================
 :npm_registry
 cls
 echo ===== NPM镜像源管理 =====
-echo 1. 切换 npmmirror国内镜像(淘宝)
+echo 1. 切换npmmirror国内镜像
 echo 2. 恢复官方npm源
-echo 3. 查看当前生效镜像源
-echo 4. 清理npm/npx缓存
-echo 0. 返回进阶设置菜单
+echo 3. 查看当前生效镜像
+echo 4. 清理npm与npx缓存
+echo 0. 返回进阶菜单
 echo.
+
+set "reg_opt="
 set /p reg_opt=请输入选项:
+
 if "!reg_opt!"=="1" (
-    npm config set registry https://registry.npmmirror.com/
-    echo [OK]已切换为国内npmmirror镜像
-    pause
+    cmd /c npm config set registry "%NPM_REGISTRY%"
+    echo [OK]已切换国内镜像
+    pause >nul
     goto npm_registry
 )
 if "!reg_opt!"=="2" (
-    npm config set registry https://registry.npmjs.org/
-    echo [OK]已恢复官方NPM源
-    pause
+    cmd /c npm config set registry https://registry.npmjs.org/
+    echo [OK]已恢复官方源
+    pause >nul
     goto npm_registry
 )
 if "!reg_opt!"=="3" (
-    echo 当前registry:
-    npm config get registry
-    pause
+    echo 当前registry地址:
+    cmd /c npm config get registry
+    echo.
+    pause >nul
     goto npm_registry
 )
 if "!reg_opt!"=="4" (
     echo 正在清理npm缓存...
-    npm cache clean --force
+    cmd /c npm cache clean --force 2^>nul
     rd /s /q "%LocalAppData%\npm-cache\_npx" 2>nul
     echo [OK]缓存清理完成
-    pause
+    pause >nul
     goto npm_registry
 )
 if "!reg_opt!"=="0" goto sub_adv_setting
+
+::无效输入兜底，防止跑飞退出
+echo [错误]无效选项，请重新输入！
+pause >nul
 goto npm_registry
+::======================== DSH启动 ========================
 :start_dsh_npx
 if !NODE_OK! EQU 0 (
-    echo [警告]无法启动]未检测Node.js，请先手动安装Node LTS版本
+    echo [警告]无法启动：未安装Node LTS
     pause
     goto main_menu
 )
 if !NPX_OK! EQU 0 (
-    echo [警告]无法启动]npx不可用，请修复Node安装
+    echo [警告]无法启动：npx异常，请修复Node安装
     pause
     goto main_menu
 )
-echo ----- 通过npx启动 DSH服务 -----
-echo [说明]将弹出新CMD窗口运行DSH，请勿关闭该窗口
-echo 本地访问地址: http://127.0.0.1:!SHADOW_DSH_PORT!
-echo 首次运行需要联网下载包，已经内置npmmirror镜像
+echo ----- 新开窗口启动DSH服务 -----
+echo [说明]请勿关闭弹出的DSH-Service窗口
+echo 本地访问地址: http://!LOCAL_LOOP!:!SHADOW_DSH_PORT!
 echo.
-start "DSH-Service" cmd /k "npx !NPX_CMD!"
-echo [完成]DSH服务窗口已拉起！
+start "DSH-Service" cmd /k "!NPX_RUN!"
+echo [完成]DSH服务窗口已拉起
 echo.
 pause
 goto main_menu
+
+::======================== 进程终止 ========================
 :stop_dsh_node
-echo ----- 终止Node/DSH相关进程 -----
+echo ----- 终止全部Node/DSH进程 -----
 taskkill /f /im node.exe 2>nul
 taskkill /f /im cmd.exe /fi "WINDOWTITLE eq DSH-Service*" 2>nul
-echo [完成]已尝试杀掉所有node进程以及DSH服务窗口
+echo [完成]已强制关闭所有node与DSH窗口
 echo.
 pause
 goto main_menu
+
+::======================== 自定义端口转发创建（增加端口数字校验） ========================
 :add_rule
-echo ----- 创建端口转发 -----
+echo ----- 创建自定义端口转发 -----
 set "in_port="
-set /p in_port="输入本机监听端口:"
+set /p in_port="输入本机监听端口(1-65535):"
+:: 端口合法性校验
+echo !in_port!| findstr "^[0-9]*$" >nul || (
+    echo [错误]端口必须为纯数字
+    pause
+    goto add_rule
+)
+if !in_port! LSS 1 || !in_port! GTR 65535 (
+    echo [错误]端口范围仅限1~65535
+    pause
+    goto add_rule
+)
 set "dst_ip="
 set /p dst_ip="输入目标内网IP:"
 set "dst_port="
-set /p dst_port="输入目标端口:"
+set /p dst_port="输入目标端口(1-65535):"
+echo !dst_port!| findstr "^[0-9]*$" >nul || (
+    echo [错误]目标端口必须为纯数字
+    pause
+    goto add_rule
+)
+if !dst_port! LSS 1 || !dst_port! GTR 65535 (
+    echo [错误]目标端口范围仅限1~65535
+    pause
+    goto add_rule
+)
 netsh interface portproxy add v4tov4 listenport=!in_port! listenaddress=!LOCAL_IP! connectport=!dst_port! connectaddress=!dst_ip!
 if !errorlevel! equ 0 (
-    echo [成功]转发规则已创建 !LOCAL_IP!:!in_port! --> !dst_ip!:!dst_port!
+    echo [成功]转发 !LOCAL_IP!:!in_port! --> !dst_ip!:!dst_port!
 ) else (
-    echo [失败]创建端口转发失败，请检查管理员权限、端口是否占用
+    echo [失败]创建转发失败，检查管理员/端口占用
 )
 echo.
 pause
 goto main_menu
+
+::======================== 查看转发规则 ========================
 :show_rule
-echo ----- 当前端口转发列表 -----
+echo ----- 当前全部端口转发列表 -----
 netsh interface portproxy show all
 echo.
 pause
 goto main_menu
+
+::======================== 清空所有转发 ========================
 :clean_all
-echo 即将清除全部 portproxy 转发规则，确认继续？(Y/N)
+echo 确认清空全部portproxy转发规则？(Y/N)
 set "confirm="
 set /p confirm="输入选择:"
 if /i not "!confirm!"=="Y" goto main_menu
 netsh interface portproxy reset
-echo [完成]全部端口转发规则已清空
+echo [完成]所有转发规则已清空
 echo.
 pause
 goto main_menu
+
+::======================== DSH一键隧道 ========================
 :setup_dsh_tunnel
-echo ----- DSH局域网隧道配置 -----
-netsh interface portproxy add v4tov4 listenport=!LOCAL_PORT! listenaddress=!LOCAL_IP! connectport=!SHADOW_DSH_PORT! connectaddress=127.0.0.1
+echo ----- 一键创建DSH局域网隧道 -----
+netsh interface portproxy add v4tov4 listenport=!LOCAL_PORT! listenaddress=!LOCAL_IP! connectport=!SHADOW_DSH_PORT! connectaddress=!LOCAL_LOOP!
 if !errorlevel! equ 0 (
-    echo [成功]DSH隧道转发已配置完成
-    echo ?局域网其他设备访问：http://!LOCAL_IP!:!LOCAL_PORT!
+    echo [成功]隧道配置完成
+    echo 局域网访问地址: http://!LOCAL_IP!:!LOCAL_PORT!
 ) else (
-    echo [失败]DSH隧道配置失败，请确认管理员权限
+    echo [失败]隧道创建失败，请确认管理员权限
 )
 echo.
 pause
 goto main_menu
+
+::======================== 退出脚本 ========================
 :exit_script
 if !AUTO_CLEAN_RULE! EQU 1 (
-    echo [提示]自动清理模式开启，正在清空所有portproxy规则
+    echo [提示]自动清理开启，正在清空全部端口转发
     netsh interface portproxy reset
 )
-echo 程序退出
+echo 脚本即将退出
 timeout /t 2 /nobreak >nul
 popd
 endlocal
