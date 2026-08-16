@@ -1,21 +1,21 @@
 @echo off
 setlocal enabledelayedexpansion
-::======================== 全局配置区（统一修改一处全局生效） ========================
+pushd "%~dp0"
+::======================== 全局配置区 ========================
 set "LOCAL_IP="
 set "LOCAL_PORT=8080"
 set "SHADOW_DSH_PORT=22222"
 set "AUTO_CLEAN_RULE=1"
 set "NPM_REGISTRY=https://registry.npmmirror.com"
 set "DSH_PKG=@deepseek-ai/dsh"
-:: 统一封装npx基础参数，所有调用复用
 set "NPX_BASE=npx --yes --registry=%NPM_REGISTRY% %DSH_PKG%"
 set "NPX_RUN=%NPX_BASE% web --port %SHADOW_DSH_PORT%"
 set "LOCAL_LOOP=127.0.0.1"
 ::===========================================================
 cls
 echo ======================================================
-echo        DSH 局域网一体化工具 v1.7 优化增强版
-echo  前置条件：手动安装 Node.js LTS，脚本无法自动安装Node
+echo        DSH 局域网一体化工具 v1.7 稳定修复版
+echo  前置条件：手动右键以管理员身份运行，自行安装Node.js LTS
 echo ======================================================
 echo [环境检测]脚本工作目录: "%cd%"
 echo.
@@ -27,14 +27,12 @@ cls
 echo -------- 前置环境检测 --------
 set "NODE_OK=0"
 set "NPX_OK=0"
-:: 管理员校验
 fltmc >nul 2>&1
 if errorlevel 1 (
-    echo [错误]当前不是管理员权限！端口转发netsh必须管理员，请右键脚本[以管理员身份运行]
+    echo [错误]当前不是管理员权限！端口转发必须管理员，请右键脚本[以管理员身份运行]
 ) else (
     echo [OK]管理员权限校验通过
 )
-:: Node检测
 where node >nul 2>&1
 if errorlevel 1 (
     echo [警告]未检测到node.js
@@ -44,7 +42,6 @@ if errorlevel 1 (
     set "NODE_OK=1"
     for /f "delims=" %%v in ('node -v 2^>nul') do echo [OK]node版本: %%v
 )
-:: Npx检测
 where npx >nul 2>&1
 if errorlevel 1 (
     echo [警告]未检测到npx Node安装异常
@@ -52,7 +49,6 @@ if errorlevel 1 (
     set "NPX_OK=1"
     for /f "delims=" %%v in ('npx -v 2^>nul') do echo [OK]npx版本: %%v
 )
-:: DSH端口占用检测
 netstat -ano | findstr ":%SHADOW_DSH_PORT%" >nul
 if not errorlevel 1 (
     echo [警告]端口%SHADOW_DSH_PORT%已经被占用！DSH服务端口冲突
@@ -62,7 +58,7 @@ if not errorlevel 1 (
 echo ------------------------------
 echo.
 
-::======================== 内网IP自动探测函数 ========================
+::======================== 内网IP自动探测 ========================
 if defined LOCAL_IP (
     echo [信息]已使用手动配置IP: !LOCAL_IP!
     goto ip_probe_done
@@ -183,7 +179,7 @@ echo.
 pause
 goto sub_adv_setting
 
-::======================== DSH版本检测（统一缓存版本变量，仅一次网络请求） ========================
+::======================== DSH版本检测 ========================
 :check_dsh_ver
 echo ----- DSH 版本检测 -----
 if !NODE_OK! EQU 0 (
@@ -196,12 +192,11 @@ if !NPX_OK! EQU 0 (
     pause
     goto sub_adv_setting
 )
-:: 一次性拉取版本，不重复请求
 set "LOCAL_DSH_VER=未知"
 set "LATEST_DSH_VER=未知"
 echo [信息]正在拉取本地与线上版本信息，请稍候...
-for /f "delims=" %%v in ('!NPX_BASE! --version 2^>nul') do set "LOCAL_DSH_VER=%%v"
-for /f "delims=" %%v in ('npm view %DSH_PKG% version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_DSH_VER=%%v"
+for /f "delims=" %%v in ('cmd /c !NPX_BASE! --version 2^>nul') do set "LOCAL_DSH_VER=%%v"
+for /f "delims=" %%v in ('cmd /c npm view %DSH_PKG% version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_DSH_VER=%%v"
 
 echo.
 if "!LOCAL_DSH_VER!"=="未知" (
@@ -227,7 +222,7 @@ echo.
 pause
 goto sub_adv_setting
 
-::======================== DSH一键更新（复用预查询版本，无重复请求） ========================
+::======================== DSH一键更新 ========================
 :update_dsh
 echo ----- 更新 DSH 到最新版 -----
 if !NODE_OK! EQU 0 (
@@ -240,12 +235,11 @@ if !NPX_OK! EQU 0 (
     pause
     goto sub_adv_setting
 )
-:: 复用版本查询逻辑，不重复请求
 set "LATEST_VER=未知"
 set "LOCAL_VER=未知"
 echo [信息]查询线上最新版本...
-for /f "delims=" %%v in ('npm view %DSH_PKG% version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_VER=%%v"
-for /f "delims=" %%v in ('!NPX_BASE! --version 2^>nul') do set "LOCAL_VER=%%v"
+for /f "delims=" %%v in ('cmd /c npm view %DSH_PKG% version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_VER=%%v"
+for /f "delims=" %%v in ('cmd /c !NPX_BASE! --version 2^>nul') do set "LOCAL_VER=%%v"
 
 if "!LATEST_VER!"=="未知" (
     echo [警告]线上版本获取失败，尝试强制拉取安装包...
@@ -255,7 +249,6 @@ if "!LOCAL_VER!"=="未知" (
     echo [信息]本地无缓存，执行首次安装
     goto do_update
 )
-:: 版本相同直接跳过
 if "!LOCAL_VER!"=="!LATEST_VER!" (
     echo [信息]当前已是最新版本 [!LOCAL_VER!]，无需执行更新
     echo.
@@ -268,11 +261,11 @@ echo [信息]发现新版本: !LOCAL_VER! --> !LATEST_VER!
 echo [信息]开始拉取安装包，无进度条，请等待1~3分钟
 echo [说明]使用npmmirror国内镜像加速，首次下载耗时较长
 echo.
-!NPX_BASE!@latest --version >nul 2>&1
+cmd /c !NPX_BASE!@latest --version >nul 2>&1
 if !errorlevel! equ 0 (
     echo.
     echo [成功]DSH更新完成，当前版本:
-    !NPX_BASE! --version
+    cmd /c !NPX_BASE! --version
 ) else (
     echo [失败]更新拉取失败
     echo 排错建议: 1.切换镜像源 2.清理npm缓存 3.检查网络
@@ -281,7 +274,7 @@ echo.
 pause
 goto sub_adv_setting
 
-::======================== NPM镜像管理 ========================
+::======================== NPM镜像管理（已修复stdin闪退bug） ========================
 :npm_registry
 cls
 echo ===== NPM镜像源管理 =====
@@ -291,10 +284,8 @@ echo 3. 查看当前生效镜像
 echo 4. 清理npm与npx缓存
 echo 0. 返回进阶菜单
 echo.
-
 set "reg_opt="
 set /p reg_opt=请输入选项:
-
 if "!reg_opt!"=="1" (
     cmd /c npm config set registry "%NPM_REGISTRY%"
     echo [OK]已切换国内镜像
@@ -323,11 +314,10 @@ if "!reg_opt!"=="4" (
     goto npm_registry
 )
 if "!reg_opt!"=="0" goto sub_adv_setting
-
-::无效输入兜底，防止跑飞退出
 echo [错误]无效选项，请重新输入！
 pause >nul
 goto npm_registry
+
 ::======================== DSH启动 ========================
 :start_dsh_npx
 if !NODE_OK! EQU 0 (
@@ -360,12 +350,11 @@ echo.
 pause
 goto main_menu
 
-::======================== 自定义端口转发创建（增加端口数字校验） ========================
+::======================== 自定义端口转发创建（端口校验） ========================
 :add_rule
 echo ----- 创建自定义端口转发 -----
 set "in_port="
 set /p in_port="输入本机监听端口(1-65535):"
-:: 端口合法性校验
 echo !in_port!| findstr "^[0-9]*$" >nul || (
     echo [错误]端口必须为纯数字
     pause
