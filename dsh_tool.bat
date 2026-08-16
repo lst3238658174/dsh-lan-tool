@@ -12,7 +12,7 @@ set "NPX_CMD=--registry=%NPM_REGISTRY% @deepseek-ai/dsh web --port %SHADOW_DSH_P
 ::===========================================================
 cls
 echo ======================================================
-echo        DSH 局域网一体化工具 v1.9.0 增强NPX版
+echo        DSH 局域网一体化工具 v1.7 分层菜单优化版
 echo  ?前置条件：手动安装 Node.js LTS，脚本无法自动安装Node
 echo ======================================================
 echo [环境检测]脚本工作目录: %cd%
@@ -26,31 +26,31 @@ set "NODE_OK=0"
 set "NPX_OK=0"
 fltmc >nul 2>&1
 if errorlevel 1 (
-    echo [?错误]当前不是管理员权限！端口转发netsh必须管理员，请右键脚本【以管理员身份运行】
+    echo [错误]当前不是管理员权限！端口转发netsh必须管理员，请右键脚本[以管理员身份运行]
 ) else (
-    echo [?OK]管理员权限校验通过
+    echo [OK]管理员权限校验通过
 )
 where node >nul 2>&1
 if errorlevel 1 (
-    echo [?未检测到node.js]
+    echo [警告]未检测到node.js
     echo 请手动下载安装 Node.js LTS https://nodejs.org/
     echo 安装完成后关闭全部cmd窗口，重新运行本脚本
 ) else (
     set "NODE_OK=1"
-    for /f "delims=" %%v in ('node -v 2^>nul') do echo [?OK]node版本: %%v
+    for /f "delims=" %%v in ('node -v 2^>nul') do echo [OK]node版本: %%v
 )
 where npx >nul 2>&1
 if errorlevel 1 (
-    echo [?未检测到npx] Node安装异常
+    echo [警告]未检测到npx Node安装异常
 ) else (
     set "NPX_OK=1"
-    for /f "delims=" %%v in ('npx -v 2^>nul') do echo [?OK]npx版本: %%v
+    for /f "delims=" %%v in ('npx -v 2^>nul') do echo [OK]npx版本: %%v
 )
 netstat -ano | findstr ":%SHADOW_DSH_PORT%" >nul
 if not errorlevel 1 (
-    echo [?警告]端口%SHADOW_DSH_PORT%已经被占用！DSH服务端口冲突
+    echo [警告]端口%SHADOW_DSH_PORT%已经被占用！DSH服务端口冲突
 ) else (
-    echo [?OK]%SHADOW_DSH_PORT%端口空闲
+    echo [OK]%SHADOW_DSH_PORT%端口空闲
 )
 echo ------------------------------
 echo.
@@ -123,18 +123,18 @@ echo [本机信息] 外部访问端口: !LOCAL_PORT!
 echo [本机信息] DSH本地端口: !SHADOW_DSH_PORT!
 echo [npx启动命令] npx !NPX_CMD!
 echo.
+::===================== 一级主菜单 =====================
 :main_menu
-echo ====================== 功能菜单 ======================
+echo ====================== 主功能菜单 ======================
 echo 1. 创建端口转发规则
 echo 2. 查看本机现有端口转发
 echo 3. 删除全部端口转发规则
 echo 4. 一键配置DSH局域网隧道
-echo 5. 退出脚本
-echo 6. 启动 DSH(npx)服务【新开独立窗口】
-echo 7. 终止全部 Node / DSH 进程
-echo 8. 重新执行环境自检
-echo 9. 检测 DSH 版本信息
-echo 10. 更新 DSH 到最新版本
+echo 5. 启动 DSH(npx)服务[新开独立窗口]
+echo 6. 终止全部 Node / DSH 进程
+echo 7. 重新执行环境自检
+echo 8. 进入进阶设置子菜单(版本/镜像管理)
+echo 9. 退出脚本
 echo =====================================================
 set "sel="
 set /p sel="请输入功能序号:"
@@ -143,29 +143,46 @@ if "!sel!"=="1" goto add_rule
 if "!sel!"=="2" goto show_rule
 if "!sel!"=="3" goto clean_all
 if "!sel!"=="4" goto setup_dsh_tunnel
-if "!sel!"=="5" goto exit_script
-if "!sel!"=="6" goto start_dsh_npx
-if "!sel!"=="7" goto stop_dsh_node
-if "!sel!"=="8" goto recheck_env
-if "!sel!"=="9" goto check_dsh_ver
-if "!sel!"=="10" goto update_dsh
+if "!sel!"=="5" goto start_dsh_npx
+if "!sel!"=="6" goto stop_dsh_node
+if "!sel!"=="7" goto recheck_env
+if "!sel!"=="8" goto sub_adv_setting
+if "!sel!"=="9" goto exit_script
 echo [错误]无效输入，请重新选择
 echo.
 goto main_menu
-
+::===================== 二级进阶设置子菜单 =====================
+:sub_adv_setting
+cls
+echo ================== 进阶设置子菜单 ==================
+echo 1. 检测 DSH 版本信息
+echo 2. 更新 DSH 到最新版本
+echo 3. NPM镜像源管理
+echo 0. 返回主菜单
+echo =====================================================
+set "sub_sel="
+set /p sub_sel="请输入子菜单序号:"
+echo.
+if "!sub_sel!"=="1" goto check_dsh_ver
+if "!sub_sel!"=="2" goto update_dsh
+if "!sub_sel!"=="3" goto npm_registry
+if "!sub_sel!"=="0" goto main_menu
+echo [错误]无效子菜单序号，请重新选择
+echo.
+pause
+goto sub_adv_setting
 :check_dsh_ver
 echo ----- DSH 版本检测 -----
 if !NODE_OK! EQU 0 (
     echo [错误]未检测Node.js，无法执行版本检测
     pause
-    goto main_menu
+    goto sub_adv_setting
 )
 if !NPX_OK! EQU 0 (
     echo [错误]npx不可用，无法执行版本检测
     pause
-    goto main_menu
+    goto sub_adv_setting
 )
-
 echo [信息]正在获取本地DSH运行版本...
 set "LOCAL_DSH_VER=未知"
 for /f "delims=" %%v in ('npx --registry=%NPM_REGISTRY% @deepseek-ai/dsh --version 2^>nul') do set "LOCAL_DSH_VER=%%v"
@@ -174,7 +191,6 @@ if "!LOCAL_DSH_VER!"=="未知" (
 ) else (
     echo [OK]本地DSH版本: !LOCAL_DSH_VER!
 )
-
 echo.
 echo [信息]正在获取npm源最新版本...
 set "LATEST_DSH_VER=未知"
@@ -184,38 +200,34 @@ if "!LATEST_DSH_VER!"=="未知" (
 ) else (
     echo [OK]npm最新版本: !LATEST_DSH_VER!
 )
-
 echo.
 if not "!LOCAL_DSH_VER!"=="未知" if not "!LATEST_DSH_VER!"=="未知" (
     if "!LOCAL_DSH_VER!"=="!LATEST_DSH_VER!" (
         echo [信息]当前DSH已是最新版本
     ) else (
-        echo [提示]存在可用更新，可选择菜单「10」更新到最新版
+        echo [提示]存在可用更新，可选择子菜单[2]更新到最新版
     )
 )
 echo.
 pause
-goto main_menu
-
+goto sub_adv_setting
 :update_dsh
 echo ----- 更新 DSH 到最新版 -----
 if !NODE_OK! EQU 0 (
     echo [错误]未检测Node.js，无法执行更新
     pause
-    goto main_menu
+    goto sub_adv_setting
 )
 if !NPX_OK! EQU 0 (
     echo [错误]npx不可用，无法执行更新
     pause
-    goto main_menu
+    goto sub_adv_setting
 )
-
 echo [信息]正在查询最新版本号...
 set "LATEST_VER=未知"
 set "LOCAL_VER=未知"
 for /f "delims=" %%v in ('npm view @deepseek-ai/dsh version --registry=%NPM_REGISTRY% 2^>nul') do set "LATEST_VER=%%v"
 for /f "delims=" %%v in ('npx --yes --registry=%NPM_REGISTRY% @deepseek-ai/dsh --version 2^>nul') do set "LOCAL_VER=%%v"
-
 if "!LATEST_VER!"=="未知" (
     echo [警告]获取最新版本失败，尝试直接拉取...
     goto do_update
@@ -224,45 +236,76 @@ if "!LOCAL_VER!"=="未知" (
     echo [信息]本地未检测到DSH缓存，执行首次安装...
     goto do_update
 )
-
-:: 版本一致，直接跳过更新
+:: 版本一致自动跳过更新
 if "!LOCAL_VER!"=="!LATEST_VER!" (
     echo [信息]当前已是最新版本 [!LOCAL_VER!]，无需更新
     echo.
     pause
-    goto main_menu
+    goto sub_adv_setting
 )
-
-echo [信息]发现新版本：!LOCAL_VER! --^> !LATEST_VER!
-
+echo [信息]发现新版本：!LOCAL_VER! --> !LATEST_VER!
 :do_update
 echo [信息]正在拉取安装包（无进度条，请耐心等待1-3分钟）...
 echo [说明]全程使用npmmirror国内镜像加速，首次更新耗时较长
 echo.
-
 npx --yes --registry=%NPM_REGISTRY% @deepseek-ai/dsh@latest --version >nul 2>&1
-
 if !errorlevel! equ 0 (
     echo.
     echo [成功]DSH已更新完成
     for /f "delims=" %%v in ('npx --yes --registry=%NPM_REGISTRY% @deepseek-ai/dsh --version 2^>nul') do echo 当前生效版本: %%v
 ) else (
     echo [失败]更新执行失败
-    echo 建议: 1. 检查网络  2. 执行 npx --clear-cache 清理缓存后重试
+    echo 建议: 1. 检查网络  2. 进入镜像管理清理缓存后重试
 )
 echo.
 pause
-goto main_menu
-
-
+goto sub_adv_setting
+:npm_registry
+cls
+echo ===== NPM镜像源管理 =====
+echo 1. 切换 npmmirror国内镜像(淘宝)
+echo 2. 恢复官方npm源
+echo 3. 查看当前生效镜像源
+echo 4. 清理npm/npx缓存
+echo 0. 返回进阶设置菜单
+echo.
+set /p reg_opt=请输入选项:
+if "!reg_opt!"=="1" (
+    npm config set registry https://registry.npmmirror.com/
+    echo [OK]已切换为国内npmmirror镜像
+    pause
+    goto npm_registry
+)
+if "!reg_opt!"=="2" (
+    npm config set registry https://registry.npmjs.org/
+    echo [OK]已恢复官方NPM源
+    pause
+    goto npm_registry
+)
+if "!reg_opt!"=="3" (
+    echo 当前registry:
+    npm config get registry
+    pause
+    goto npm_registry
+)
+if "!reg_opt!"=="4" (
+    echo 正在清理npm缓存...
+    npm cache clean --force
+    rd /s /q "%LocalAppData%\npm-cache\_npx" 2>nul
+    echo [OK]缓存清理完成
+    pause
+    goto npm_registry
+)
+if "!reg_opt!"=="0" goto sub_adv_setting
+goto npm_registry
 :start_dsh_npx
 if !NODE_OK! EQU 0 (
-    echo [?无法启动]未检测Node.js，请先手动安装Node LTS版本
+    echo [警告]无法启动]未检测Node.js，请先手动安装Node LTS版本
     pause
     goto main_menu
 )
 if !NPX_OK! EQU 0 (
-    echo [?无法启动]npx不可用，请修复Node安装
+    echo [警告]无法启动]npx不可用，请修复Node安装
     pause
     goto main_menu
 )
@@ -271,7 +314,7 @@ echo [说明]将弹出新CMD窗口运行DSH，请勿关闭该窗口
 echo 本地访问地址: http://127.0.0.1:!SHADOW_DSH_PORT!
 echo 首次运行需要联网下载包，已经内置npmmirror镜像
 echo.
-start "DSH?Service" cmd /k "npx !NPX_CMD!"
+start "DSH-Service" cmd /k "npx !NPX_CMD!"
 echo [完成]DSH服务窗口已拉起！
 echo.
 pause
@@ -279,7 +322,7 @@ goto main_menu
 :stop_dsh_node
 echo ----- 终止Node/DSH相关进程 -----
 taskkill /f /im node.exe 2>nul
-taskkill /f /im cmd.exe /fi "WINDOWTITLE eq DSH?Service*" 2>nul
+taskkill /f /im cmd.exe /fi "WINDOWTITLE eq DSH-Service*" 2>nul
 echo [完成]已尝试杀掉所有node进程以及DSH服务窗口
 echo.
 pause
@@ -294,7 +337,7 @@ set "dst_port="
 set /p dst_port="输入目标端口:"
 netsh interface portproxy add v4tov4 listenport=!in_port! listenaddress=!LOCAL_IP! connectport=!dst_port! connectaddress=!dst_ip!
 if !errorlevel! equ 0 (
-    echo [成功]转发规则已创建 !LOCAL_IP!:!in_port! ===^> !dst_ip!:!dst_port!
+    echo [成功]转发规则已创建 !LOCAL_IP!:!in_port! --> !dst_ip!:!dst_port!
 ) else (
     echo [失败]创建端口转发失败，请检查管理员权限、端口是否占用
 )
